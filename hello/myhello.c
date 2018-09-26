@@ -1,4 +1,4 @@
-#include <linux/module.h>
+#include<linux/module.h>
 
 MODULE_LICENSE("GPL v2");
 MODULE_AUTHOR("Kawaharasouta <kawahara6514@gmail.com>");
@@ -8,10 +8,9 @@ static int mymodule_init(void) {
 	printk(KERN_ALERT "Hello world!!!\n");
 	return 0;
 }
-
 static void mymodule_exit(void) {
-	printk(KERN_ALERT "bye\n");
-	return 0;
+	printk(KERN_ALERT "bye.\n");
+	return;
 }
 
 module_init(mymodule_init);
