@@ -27,7 +27,7 @@ static int mymodule_init(void)
 
 static void mymodule_exit(void)
 { 
-//	del_timer(&mytimer); do nothing.//
+	del_timer(&mytimer);
 }
 
 module_init(mymodule_init);

@@ -1,6 +1,6 @@
 .PHONY: all clean install login
 
-obj-m := mytimer3.o
+obj-m := mytimer1.o
 
 all:
 	make -C ../../../output M=$(PWD) modules
