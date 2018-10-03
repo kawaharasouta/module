@@ -1,6 +1,6 @@
 .PHONY: all clean install login
 
-obj-m := mylist2.o
+obj-m := myqueue.o
 
 all:
 	make -C ../../../output M=$(PWD) modules

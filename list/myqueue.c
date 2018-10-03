@@ -5,28 +5,28 @@
 
 MODULE_LICENSE("GPL v2");
 MODULE_AUTHOR("Kawaharasouta <kawahara6514@gmail.com>");
-MODULE_DESCRIPTION("a stack example.");
+MODULE_DESCRIPTION("a queue example.");
 
 
-static LIST_HEAD(mystack);
-struct mystack_entry {
+static LIST_HEAD(myqueue);
+struct myqueue_entry {
   struct list_head list;
   int n;
 };
 
 /*** stack operation api ***/
-static void mystack_push(int n) {
-  struct mystack_entry *e = kmalloc(sizeof(*e), GFP_KERNEL);
+static void myqueue_enqueue(int n) {
+  struct myqueue_entry *e = kmalloc(sizeof(*e), GFP_KERNEL);
   e->n = n;
-  list_add(&e->list, &mystack);
+  list_add_tail(&e->list, &myqueue);
 }
-static int mystack_pop(int *np) {
-  struct mystack_entry *e;
+static int myqueue_dequeue(int *np) {
+  struct myqueue_entry *e;
 
-  if (list_empty(&mystack))
+  if (list_empty(&myqueue))
     return -1;
 
-  e = list_first_entry(&mystack, struct mystack_entry, list);
+  e = list_first_entry(&myqueue, struct myqueue_entry, list);
   if (np != NULL)
     *np = e->n;
   list_del(&e->list);
@@ -34,9 +34,9 @@ static int mystack_pop(int *np) {
 
   return 0;
 }
-static void mystack_clean_out(void) {
-  while (!list_empty(&mystack)) {
-    mystack_pop(NULL);
+static void myqueue_clean_out(void) {
+  while (!list_empty(&myqueue)) {
+    myqueue_dequeue(NULL);
   }
 }
 /*** ***/
@@ -52,13 +52,13 @@ static ssize_t show_read(struct file *f, char __user *buf, size_t len, loff_t *p
 {
   char *bufp = testbuf;
   size_t remain = sizeof(testbuf);
-  struct mystack_entry *e;
+  struct myqueue_entry *e;
   size_t l;
 
-  if (list_empty(&mystack))
+  if (list_empty(&myqueue))
     return simple_read_from_buffer(buf, len, ppos, "\n", 1);
 
-  list_for_each_entry(e, &mystack, list) {
+  list_for_each_entry(e, &myqueue, list) {
     int n;
 
     n = snprintf(bufp, remain, "%d ", e->n);
@@ -78,9 +78,9 @@ static ssize_t push_write(struct file *f, const char __user *buf, size_t len, lo
   ssize_t ret;
   int n;
 
-	struct mystack_entry *e;
+	struct myqueue_entry *e;
 	int num = 0;
-	list_for_each_entry(e, &mystack, list) {
+	list_for_each_entry(e, &myqueue, list) {
 		num++;
 	}
 	if (num > 10)
@@ -90,7 +90,7 @@ static ssize_t push_write(struct file *f, const char __user *buf, size_t len, lo
   if (ret < 0)
     return ret;
   sscanf(testbuf, "%20d", &n);
-  mystack_push(n);
+  myqueue_enqueue(n);
 
   return ret;
 }
@@ -98,7 +98,7 @@ static ssize_t pop_read(struct file *f, char __user *buf, size_t len, loff_t *pp
 {
   int n;
 
-  if (*ppos || mystack_pop(&n) == -1)
+  if (*ppos || myqueue_dequeue(&n) == -1)
     return 0;
   snprintf(testbuf, sizeof(testbuf), "%d\n", n);
   return simple_read_from_buffer(buf, len, ppos, testbuf, strlen(testbuf));
@@ -122,18 +122,18 @@ static struct file_operations pop_fops = {
 
 
 static int mymodule_init(void) {
-  printk(KERN_ALERT "mylist2.\n");
+  printk(KERN_ALERT "myqueue.\n");
 
-  mylist_dir = debugfs_create_dir("mystack", NULL);
+  mylist_dir = debugfs_create_dir("myqueue", NULL);
 	if (!mylist_dir)
 		return -ENOMEM;
 	showfile = debugfs_create_file("show", 0400, mylist_dir, NULL, &show_fops);
 	if (!showfile)
 		goto fail;
-	pushfile = debugfs_create_file("push", 0200, mylist_dir, NULL, &push_fops);
+	pushfile = debugfs_create_file("enqueue", 0200, mylist_dir, NULL, &push_fops);
 	if (!pushfile)
 		goto fail;
-	popfile = debugfs_create_file("pop", 0400, mylist_dir, NULL, &pop_fops);
+	popfile = debugfs_create_file("dequeue", 0400, mylist_dir, NULL, &pop_fops);
 	if (!popfile)
 		goto fail;
 
@@ -147,9 +147,9 @@ fail:
 }
 static void mymodule_exit(void) {
   debugfs_remove_recursive(mylist_dir);
-  mystack_clean_out();
+  myqueue_clean_out();
 
-  printk(KERN_ALERT "mylist2 bye.\n");
+  printk(KERN_ALERT "myqueue bye.\n");
   return;
 }
 
