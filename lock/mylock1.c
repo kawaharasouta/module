@@ -121,8 +121,8 @@ static ssize_t pop_read(struct file *f, char __user *buf, size_t len, loff_t *pp
 
 	mutex_lock(&mystack_mutex);
 	if (*ppos || mystack_pop(&n) == -1) {
-		return 0;
 		mutex_unlock(&mystack_mutex);
+		return 0;
 	}
 	snprintf(testbuf, sizeof(testbuf), "%d\n", n);
 	ret = simple_read_from_buffer(buf, len, ppos, testbuf, strlen(testbuf));
