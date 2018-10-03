@@ -11,6 +11,7 @@ static struct dentry *testfile;
 static char testbuf[128];
 
 struct timer_list mytimer;
+static DEFINE_MUTEX(debugfs_mutex);
 
 static unsigned long mytimer_timeout_msecs = 1000 * 1000;
 
@@ -25,12 +26,14 @@ mytimer_remain_msecs_read(struct file *f, char __user *buf, size_t len, loff_t *
 {
 	unsigned long diff_msecs, now = jiffies;
 
+	mutex_lock(&debugfs_mutex);
 	if (time_after(mytimer.expires, now))
 		diff_msecs = (mytimer.expires - now) * 1000 / HZ;
 	else
 		diff_msecs = 0;
 
 	snprintf(testbuf, sizeof(testbuf), "%lu\n", diff_msecs);
+	mutex_unlock(&debugfs_mutex);
 	return simple_read_from_buffer(buf, len, ppos, testbuf, strlen(testbuf));
 }
 
@@ -39,11 +42,15 @@ mytimer_remain_msecs_write(struct file *f, const char __user *buf, size_t len, l
 {
 	ssize_t ret;
 
+	mutex_lock(&debugfs_mutex);
 	ret = simple_write_to_buffer(testbuf, sizeof(testbuf), ppos, buf, len);
-	if (ret < 0)
+	if (ret < 0) {
+		mutex_lock(&debugfs_mutex);
 		return ret;
+	}
 	sscanf(testbuf, "%20lu", &mytimer_timeout_msecs);
 	mod_timer(&mytimer, jiffies + mytimer_timeout_msecs * HZ / 1000);
+	mutex_lock(&debugfs_mutex);
 	return ret;
 }
 
