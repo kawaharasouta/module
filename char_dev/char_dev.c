@@ -1,8 +1,8 @@
 #include<linux/module.h>
+#include<linux/kernel.h>
 #include<linux/fs.h>
 #include<linux/types.h>
 #include <linux/cdev.h>
-//#include<linux/kdev_t.h>
 #include<linux/slab.h>
 
 #define CHAR_MAJOR 0
@@ -25,24 +25,34 @@ struct chardev_data {
 static int chardev_open(struct inode *inode, struct file *fp) {
 #if 0
 	struct chardev_data *data;
+#if 0
 	unsigned int minor = iminor(inode);
 	data = container_of(inode->i_cdev, struct chardev_data, cdev);
 	fp->private_data = data;
-
 	printk(KERN_INFO "char_dev: %s", __FUNCTION__);
   printk(KERN_INFO "&inode->i_cdev = %p\n", &inode->i_cdev);
   printk(KERN_INFO "  data = %p\n", data);
-  printk(KERN_INFO "  cdev = %p\n", cdev);	
+  printk(KERN_INFO "  cdev = %p\n", cdev);
+#else
+	printk("%s: major %d, minor %d (pid %d) \n", __func__, imajor(inode), iminor(inode), current->pid);
+	data = (struct chardev_data *)kmalloc(sizeof(chardev_data), GFP_KERNEL);
+	if(!data) {
+		printk(KERN_ALERT "allocate error\n");
+	}
+	fp->private_date = data;
+#endif
+
 #else 
 	printk("chardev_open\n");
 #endif
 	return 0;
 }
 static int chardev_close(struct inode *inode, struct file *fp) {
+	//printk("%s: major %d, minor %d (pid %d) \n", __func__, imajor(inode), iminor(inode), current->pid);
 	//if(fp->private_data) {
-	//
+	//	kfree(fp->private_data);
+	//		fp->private_data = NULL;
 	//}
-	//printk(KERN_INFO "char_dev: %s", __FUNCTION__);
 	printk("chardev_close\n");
 	return 0;
 }
@@ -50,12 +60,13 @@ static ssize_t chardev_read(struct file *fp, char __user *buf, size_t count, lof
 	printk("chardev_read\n");
 	return count;
 }
-static ssize_t chdev_write(struct file *fp, char __user *buf, size_t count, loff_t *fpos) {
+static ssize_t chardev_write(struct file *fp,const char __user *buf, size_t count, loff_t *fpos) {
 	printk("chardev_write\n");
 	return count;
 }
 
 struct file_operations fops = {
+	.owner = THIS_MODULE,
 	.open = chardev_open,
 	.release = chardev_close,
 	.read = chardev_read,
@@ -83,7 +94,7 @@ static int mymodule_init(void) {
 	}
 	int devno = MKDEV(major_num, 0);
 	cdev_init(cdev, &fops);
-	cdev->owner = THIS_MODULE;
+	//cdev->owner = THIS_MODULE;
 	ret = cdev_add(cdev, devno, 1);
 	if(ret) {
 		printk(KERN_ALERT "cdev_add failed.\n");
