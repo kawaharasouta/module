@@ -17,16 +17,34 @@ static int major_num = 0;
 static struct cdev *cdev = NULL;
 
 
-//struct chardev_data {
-//	int val;
-//}
-//
-//static chardev_open(struct inode *inode, struct file *filep) {
-//	struct 
-//}
+struct chardev_data {
+	int val;
+	struct cdev cdev;
+};
+
+static int chardev_open(struct inode *inode, struct file *fp) {
+	struct chardev_data *data;
+	unsigned int minor = iminor(inode);
+	data = container_of(inode->i_cdev, struct chardev_data, cdev);
+	fp->private_data = data;
+
+	printk(KERN_INFO "char_dev: %s", __FUNCTION__);
+  printk(KERN_INFO "&inode->i_cdev = %p\n", &inode->i_cdev);
+  printk(KERN_INFO "  data = %p\n", data);
+  printk(KERN_INFO "  cdev = %p\n", cdev);
+	return 0;	
+}
+static chardev_close(struct inode *inode, struct file *fp) {
+	//if(fp->private_data) {
+	//
+	//}
+	printk(KERN_INFO "char_dev: %s", __FUNCTION__);
+	return 0;
+}
 
 struct file_operations fops = {
-	//.open = chardev_open;
+	.open = chardev_open,
+	.release = chardev_close,
 };
 
 
