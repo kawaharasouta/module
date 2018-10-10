@@ -2,8 +2,10 @@
 #include<linux/kernel.h>
 #include<linux/fs.h>
 #include<linux/types.h>
-#include <linux/cdev.h>
+#include<linux/cdev.h>
 #include<linux/slab.h>
+
+#include<asm/uaccess.h>
 
 #define CHAR_MAJOR 0
 #define DEV_NAME "char_dev"
@@ -23,7 +25,7 @@ struct chardev_data {
 };
 
 static int chardev_open(struct inode *inode, struct file *fp) {
-#if 0
+#if 1
 	struct chardev_data *data;
 #if 0
 	unsigned int minor = iminor(inode);
@@ -35,11 +37,11 @@ static int chardev_open(struct inode *inode, struct file *fp) {
   printk(KERN_INFO "  cdev = %p\n", cdev);
 #else
 	printk("%s: major %d, minor %d (pid %d) \n", __func__, imajor(inode), iminor(inode), current->pid);
-	data = (struct chardev_data *)kmalloc(sizeof(chardev_data), GFP_KERNEL);
+	data = (struct chardev_data *)kmalloc(sizeof(struct chardev_data), GFP_KERNEL);
 	if(!data) {
 		printk(KERN_ALERT "allocate error\n");
 	}
-	fp->private_date = data;
+	fp->private_data = data;
 #endif
 
 #else 
@@ -48,20 +50,40 @@ static int chardev_open(struct inode *inode, struct file *fp) {
 	return 0;
 }
 static int chardev_close(struct inode *inode, struct file *fp) {
-	//printk("%s: major %d, minor %d (pid %d) \n", __func__, imajor(inode), iminor(inode), current->pid);
-	//if(fp->private_data) {
-	//	kfree(fp->private_data);
-	//		fp->private_data = NULL;
-	//}
+	printk("%s: major %d, minor %d (pid %d) \n", __func__, imajor(inode), iminor(inode), current->pid);
+	if(fp->private_data) {
+		kfree(fp->private_data);
+			fp->private_data = NULL;
+	}
 	printk("chardev_close\n");
 	return 0;
 }
 static ssize_t chardev_read(struct file *fp, char __user *buf, size_t count, loff_t *fpos) {
-	printk("chardev_read\n");
-	return count;
+	//printk("chardev_read\n");
+	printk("%s: count %lu pos %lld\n", __func__, count, *fpos);
+	struct chardev_data *data = (struct chardev_data *)fp->private_data;
+	int val = data->val;
+	int ret = count;
+	int i;
+	for (i = 0; i < count; i++) {
+		if(copy_to_user(&buf[i], &val, 1)) {
+			ret = -EFAULT;
+		}
+	}
+
+	return ret;
 }
 static ssize_t chardev_write(struct file *fp,const char __user *buf, size_t count, loff_t *fpos) {
-	printk("chardev_write\n");
+	//printk("chardev_write\n");
+	printk("%s: count %lu pos %lld\n", __func__, count, *fpos);
+	struct chardev_data *data = (struct chardev_data *)fp->private_data;
+	int val;
+	if (count >= 1) {
+		if(copy_from_user(&val, buf, 1)) {
+			return -EFAULT;
+		}
+	}
+	data->val = val;
 	return count;
 }
 
