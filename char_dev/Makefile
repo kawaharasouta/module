@@ -1,4 +1,4 @@
-.PHONY: all clean install login
+.PHONY: all clean install login app
 
 obj-m := char_dev.o
 
@@ -13,3 +13,6 @@ install:
 
 login:
 	cd ../../../elkdat; vagrant ssh
+
+app:
+	gcc app.c -o app.out
