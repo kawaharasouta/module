@@ -47,7 +47,22 @@ struct net_device_ops net_dev_ops = {
 
 //!!!!!!!!!!!
 static void netdev_setup(struct net_device *dev) {
+	struct netdev_priv *priv;
 
+	eth_hw_addr_random(dev);
+	ether_setup(dev);
+
+	dev->netdev_ops = &dev_ops;
+
+	dev->flags |= IFF_NOARP;
+	dev->features |= NETIF_F_HW_CSUM;
+
+	priv = netdev_priv(dev);
+	memset(priv, 0, sizeof(struct netdev_priv));
+
+
+
+	return;
 }
 
 //!!!!!!!!!!!!
