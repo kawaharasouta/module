@@ -27,16 +27,41 @@ struct net_device *snull_devs[2];
 
 //private date having each device
 struct snull_priv {
-
+	struct net_device_stats stats;
+	int status;
+	struct snull_packet *ppool;
+	struct snull_packet *rx_queue;
+	int tx_int_enabled;
+	int tx_packetlen;
+	u8 *tx_packetdata;
+	struct sk_buff *skb;
+	//spinlock_t lock;
 };
 
 
-static void snull_setup() {
+static void snull_setup(struct net_device *dev) {
+	struct snull_priv *priv;
+	ether_setup(dev);
 
+	// flags, features, hard_header_cache ???
+	
+	priv = netdev_priv(dev);
+	memset(priv, 0, sizeof(struct snull_priv));
+	//spin_loxk_init(&priv->lock);
+	snull_rx_ints(dev, 1);
 }
 
 static void snull_exit(void) {
-
+	int i;
+	printk(KERN_INFO "snull_exit\n");
+	for (i = 0; i < 2; i++) {
+		if (snull_devs[i]) {
+			unregister_netdev(snull_devs[i]);
+			snull_teardown_pool(snull_devs[i]);
+			free_netdev(snull_devs[i]);
+		}
+	}
+	return;
 }
 
 static int snull_init(void) {
