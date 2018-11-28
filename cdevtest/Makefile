@@ -1,6 +1,6 @@
-.PHONY: all clean install login app
+.PHONY: all clean install login
 
-obj-m := char_dev.o
+obj-m := cdevtest.o
 
 all:
 	make -C ../../../output M=$(PWD) modules
@@ -13,6 +13,3 @@ install:
 
 login:
 	cd ../../../elkdat; vagrant ssh
-
-app:
-	gcc app.c -o app.out
