@@ -47,7 +47,7 @@ struct snull_priv {
 	int tx_packetlen;
 	u8 *tx_packetdata;
 	struct sk_buff *skb;
-	//spinlock_t lock;
+	spinlock_t lock;
 };
 
 static int lockup = 0;
@@ -92,30 +92,30 @@ struct snull_packet*
 snull_get_tx_buffer(struct net_device *dev) //detach the head of ppool
 {
 	struct snull_priv *priv = netdev_priv(dev);
-	//unsigned long flags;
+	unsigned long flags;
 	struct snull_packet *pkt;
     
-	//spin_lock_irqsave(&priv->lock, flags);
+	spin_lock_irqsave(&priv->lock, flags);
 	pkt = priv->ppool;
 	priv->ppool = pkt->next;
 	if (priv->ppool == NULL) {
 		printk (KERN_INFO "Pool empty\n");
 		netif_stop_queue(dev);
 	}
-	//spin_unlock_irqrestore(&priv->lock, flags);
+	spin_unlock_irqrestore(&priv->lock, flags);
 	return pkt;
 }
 
 void 
 snull_release_buffer(struct snull_packet *pkt)
 {
-	//unsigned long flags;
+	unsigned long flags;
 	struct snull_priv *priv = netdev_priv(pkt->dev);
 	
-	//spin_lock_irqsave(&priv->lock, flags);
+	spin_lock_irqsave(&priv->lock, flags);
 	pkt->next = priv->ppool;
 	priv->ppool = pkt;
-	//pin_unlock_irqrestore(&priv->lock, flags);
+	spin_unlock_irqrestore(&priv->lock, flags);
 	if (netif_queue_stopped(pkt->dev) && pkt->next == NULL)
 		netif_wake_queue(pkt->dev);
 }
@@ -123,13 +123,13 @@ snull_release_buffer(struct snull_packet *pkt)
 void 
 snull_enqueue_buf(struct net_device *dev, struct snull_packet *pkt) // Put the specified pkt in rx_queue.
 {
-	//unsigned long flags;
+	unsigned long flags;
 	struct snull_priv *priv = netdev_priv(dev);
 
-	//spin_lock_irqsave(&priv->lock, flags);
+	spin_lock_irqsave(&priv->lock, flags);
 	pkt->next = priv->rx_queue;  /* FIXME - misorders packets */
 	priv->rx_queue = pkt;
-	//spin_unlock_irqrestore(&priv->lock, flags);
+	spin_unlock_irqrestore(&priv->lock, flags);
 }
 
 struct 
@@ -137,13 +137,13 @@ snull_packet *snull_dequeue_buf(struct net_device *dev)
 {
 	struct snull_priv *priv = netdev_priv(dev);
 	struct snull_packet *pkt;
-	//unsigned long flags;
+	unsigned long flags;
 
-	//spin_lock_irqsave(&priv->lock, flags);
+	spin_lock_irqsave(&priv->lock, flags);
 	pkt = priv->rx_queue;
 	if (pkt != NULL)
 		priv->rx_queue = pkt->next;
-	//spin_unlock_irqrestore(&priv->lock, flags);
+	spin_unlock_irqrestore(&priv->lock, flags);
 	return pkt;
 }
 
@@ -221,7 +221,7 @@ snull_regular_interrupt(int irq, void *dev_id, struct pt_regs *regs)
 		return;
 
 	priv = netdev_priv(dev);
-	//spin_lock(&priv->lock);
+	spin_lock(&priv->lock);
 
 	/* retrieve statusword: real netdevices use I/O instructions */
 	statusword = priv->status;
@@ -242,7 +242,7 @@ snull_regular_interrupt(int irq, void *dev_id, struct pt_regs *regs)
 	}
 
 	/* Unlock the device and we are done */
-	//spin_unlock(&priv->lock);
+	spin_unlock(&priv->lock);
 	if (pkt) snull_release_buffer(pkt); /* Do this outside the lock! */
 	return;
 }
@@ -411,7 +411,7 @@ snull_setup(struct net_device *dev) {
 
 	priv = netdev_priv(dev);
 	memset(priv, 0, sizeof(struct snull_priv));
-	//spin_loxk_init(&priv->lock);
+	spin_lock_init(&priv->lock);
 	snull_rx_ints(dev, 1);
 }
 
@@ -451,8 +451,11 @@ snull_init(void) {
 		}
 	}
 
-out:	if (ret)
+out:	
+	if (ret)
 		snull_exit();
+
+	printk(KERN_INFO "snull_init fin.\n");
 	return ret;
 }
 

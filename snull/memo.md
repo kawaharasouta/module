@@ -1,6 +1,6 @@
 **memo**
 
-今の所ない関数
+今の所(実装して)ない関数
  - snull_config
  - snull_poll
  - snull__napi_interrupt
@@ -15,4 +15,5 @@
  - dev->hard_headerとかhard_header_cacheとかは対応するものがなさげ.
  - NETIF_F_NO_CSUMがなかった. netdev_features.hにIP_CSUMとか他色々はあった. 
 
-
+なんかのメモ
+ - snull_headerとかsnull_rebuild_headerとかはheader_opsの方に書いてるやつもあった. header_opsの中はcreateとかあった.
