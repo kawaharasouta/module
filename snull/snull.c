@@ -22,6 +22,7 @@ MODULE_LICENSE("GPL v2");
 MODULE_AUTHOR("Kawaharasouta <kawahara6514@gmail.com>");
 MODULE_DESCRIPTION("snull network device.");
 
+
 #define SNULL_RX_INTR 0x0001
 #define SNULL_TX_INTR 0x0002
 
@@ -97,6 +98,19 @@ struct snull_packet *snull_get_tx_buffer(struct net_device *dev) //detach the he
 	return pkt;
 }
 
+void snull_release_buffer(struct snull_packet *pkt)
+{
+	unsigned long flags;
+	struct snull_priv *priv = netdev_priv(pkt->dev);
+	
+	//spin_lock_irqsave(&priv->lock, flags);
+	pkt->next = priv->ppool;
+	priv->ppool = pkt;
+	//pin_unlock_irqrestore(&priv->lock, flags);
+	if (netif_queue_stopped(pkt->dev) && pkt->next == NULL)
+		netif_wake_queue(pkt->dev);
+}
+
 void snull_enqueue_buf(struct net_device *dev, struct snull_packet *pkt) // Put the specified pkt in rx_queue.
 {
 	unsigned long flags;
@@ -108,6 +122,19 @@ void snull_enqueue_buf(struct net_device *dev, struct snull_packet *pkt) // Put 
 	//spin_unlock_irqrestore(&priv->lock, flags);
 }
 
+struct snull_packet *snull_dequeue_buf(struct net_device *dev)
+{
+	struct snull_priv *priv = netdev_priv(dev);
+	struct snull_packet *pkt;
+	unsigned long flags;
+
+	//spin_lock_irqsave(&priv->lock, flags);
+	pkt = priv->rx_queue;
+	if (pkt != NULL)
+		priv->rx_queue = pkt->next;
+	//spin_unlock_irqrestore(&priv->lock, flags);
+	return pkt;
+}
 
 // Enable and disable receive interrupts.
 static void snull_rx_ints(struct net_device *dev, int enable)
@@ -226,12 +253,135 @@ static void snull_regular_interrupt(int irq, void *dev_id, struct pt_regs *regs)
 	return;
 }
 
+/*
+ * Transmit a packet (low level interface)
+ */
+static void snull_hw_tx(char *buf, int len, struct net_device *dev)
+{
+	/*
+	 * This function deals with hw details. This interface loops
+	 * back the packet to the other snull interface (if any).
+	 * In other words, this function implements the snull behaviour,
+	 * while all other procedures are rather device-independent
+	 */
+	struct iphdr *ih;
+	struct net_device *dest;
+	struct snull_priv *priv;
+	u32 *saddr, *daddr;
+	struct snull_packet *tx_buffer;
+    
+	/* I am paranoid. Ain't I? */
+	if (len < sizeof(struct ethhdr) + sizeof(struct iphdr)) {
+		printk("snull: Hmm... packet too short (%i octets)\n",
+				len);
+		return;
+	}
+
+	if (0) { /* enable this conditional to look at the data */
+		int i;
+		PDEBUG("len is %i\n" KERN_DEBUG "data:",len);
+		for (i=14 ; i<len; i++)
+			printk(" %02x",buf[i]&0xff);
+		printk("\n");
+	}
+	/*
+	 * Ethhdr is 14 bytes, but the kernel arranges for iphdr
+	 * to be aligned (i.e., ethhdr is unaligned)
+	 */
+	ih = (struct iphdr *)(buf+sizeof(struct ethhdr));
+	saddr = &ih->saddr;
+	daddr = &ih->daddr;
+
+	((u8 *)saddr)[2] ^= 1; /* change the third octet (class C) */
+	((u8 *)daddr)[2] ^= 1;
+
+	ih->check = 0;         /* and rebuild the checksum (ip needs it) */
+	ih->check = ip_fast_csum((unsigned char *)ih,ih->ihl);
+
+	if (dev == snull_devs[0])
+		PDEBUGG("%08x:%05i --> %08x:%05i\n",
+				ntohl(ih->saddr),ntohs(((struct tcphdr *)(ih+1))->source),
+				ntohl(ih->daddr),ntohs(((struct tcphdr *)(ih+1))->dest));
+	else
+		PDEBUGG("%08x:%05i <-- %08x:%05i\n",
+				ntohl(ih->daddr),ntohs(((struct tcphdr *)(ih+1))->dest),
+				ntohl(ih->saddr),ntohs(((struct tcphdr *)(ih+1))->source));
+
+	/*
+	 * Ok, now the packet is ready for transmission: first simulate a
+	 * receive interrupt on the twin device, then  a
+	 * transmission-done on the transmitting device
+	 */
+	dest = snull_devs[dev == snull_devs[0] ? 1 : 0];
+	priv = netdev_priv(dest);
+	tx_buffer = snull_get_tx_buffer(dev);
+	tx_buffer->datalen = len;
+	memcpy(tx_buffer->data, buf, len);
+	snull_enqueue_buf(dest, tx_buffer);
+	if (priv->rx_int_enabled) {
+		priv->status |= SNULL_RX_INTR;
+		snull_interrupt(0, dest, NULL);
+	}
+
+	priv = netdev_priv(dev);
+	priv->tx_packetlen = len;
+	priv->tx_packetdata = buf;
+	priv->status |= SNULL_TX_INTR;
+	if (lockup && ((priv->stats.tx_packets + 1) % lockup) == 0) {
+        	/* Simulate a dropped transmit interrupt */
+		netif_stop_queue(dev);
+		PDEBUG("Simulate lockup at %ld, txp %ld\n", jiffies,
+				(unsigned long) priv->stats.tx_packets);
+	}
+	else
+		snull_interrupt(0, dev, NULL);
+}
+
+/*
+ * Transmit a packet (called by the kernel)
+ */
+int snull_tx(struct sk_buff *skb, struct net_device *dev)
+{
+	int len;
+	char *data, shortpkt[ETH_ZLEN];
+	struct snull_priv *priv = netdev_priv(dev);
+	
+	data = skb->data;
+	len = skb->len;
+	if (len < ETH_ZLEN) {
+		memset(shortpkt, 0, ETH_ZLEN);
+		memcpy(shortpkt, skb->data, skb->len);
+		len = ETH_ZLEN;
+		data = shortpkt;
+	}
+	dev->trans_start = jiffies; /* save the timestamp */
+
+	/* Remember the skb, so we can free it at interrupt time */
+	priv->skb = skb;
+
+	/* actual deliver of data is device-specific, and not shown here */
+	snull_hw_tx(data, len, dev);
+
+	return 0; /* Our simple device can not fail */
+}
 
 struct net_device_stats*
 snull_stats(struct net_device *dev) {
 	struct snull_priv = netdev_priv(dev);
 	return &priv->stats;	
 }
+
+int snull_header(struct sk_buff *skb, struct net_device *dev, unsigned short type, void *daddr, void *saddr, unsigned int len)
+{
+	struct ethhdr *eth = (struct ethhdr *)skb_push(skb,ETH_HLEN);
+
+	eth->h_proto = htons(type);
+	memcpy(eth->h_source, saddr ? saddr : dev->dev_addr, dev->addr_len);
+	memcpy(eth->h_dest,   daddr ? daddr : dev->dev_addr, dev->addr_len);
+	eth->h_dest[ETH_ALEN-1]   ^= 0x01;   /* dest is us xor 1 */
+	return (dev->hard_header_len);
+}
+
 
 static void snull_setup(struct net_device *dev) {
 	struct snull_priv *priv;
@@ -243,10 +393,10 @@ static void snull_setup(struct net_device *dev) {
 	//dev->set_config = snull_config;
 	dev->hard_start_xmit = snull_tx;
 	//dev->do_ioctl = snull_ioctl;
-	//dev->get_stats = snull_stats;
+	dev->get_stats = snull_stats;
 	//dev->change_mtu = snull_change_mtu;  
 	//dev->rebuild_header  = snull_rebuild_header;
-	//dev->hard_header = snull_header;
+	dev->hard_header = snull_header;
 	//dev->tx_timeout = snull_tx_timeout;
 	//dev->watchdog_timeo = timeout;
 
