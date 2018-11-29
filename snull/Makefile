@@ -1,6 +1,6 @@
 .PHONY: all clean install login
 
-obj-m := cdevtest.o
+obj-m := snull.o
 
 all:
 	make -C ../../../output M=$(PWD) modules

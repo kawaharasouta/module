@@ -16,6 +16,8 @@
 #include <linux/interrupt.h>
 #include <linux/skbuff.h>
 
+#include<uapi/linux/netdevice.h>
+
 #define MODULE_NAME "SNULL"
 
 MODULE_LICENSE("GPL v2");
@@ -32,8 +34,8 @@ struct snull_packet {
 	struct snull_packet *next;
 	struct net_device *dev;
 	int datalen;
-	u8 data[ETH_DSTS_LEN];
-}
+	u8 data[ETH_DATA_LEN];
+};
 
 //private date having each device
 struct snull_priv {
@@ -41,12 +43,15 @@ struct snull_priv {
 	int status;
 	struct snull_packet *ppool;
 	struct snull_packet *rx_queue;
-	int tx_int_enabled;
+	int rx_int_enabled;
 	int tx_packetlen;
 	u8 *tx_packetdata;
 	struct sk_buff *skb;
 	//spinlock_t lock;
 };
+
+static int lockup = 0;
+module_param(lockup, int, 0);
 
 int pool_size = 8;
 module_param(pool_size, int, 0);
@@ -57,9 +62,9 @@ snull_setup_pool(struct net_device *dev)
 {
 	struct snull_priv *priv = netdev_priv(dev);
 	struct snull_packet *pkt;
-
+	int i;
 	priv->ppool = NULL;
-	for (int i = 0; i < pool_size; i++) {
+	for (i = 0; i < pool_size; i++) {
 		pkt = kmalloc (sizeof (struct snull_packet), GFP_KERNEL);
 		if (pkt == NULL) {
 			printk (KERN_NOTICE "Ran out of memory allocating packet pool\n");
@@ -87,7 +92,7 @@ struct snull_packet*
 snull_get_tx_buffer(struct net_device *dev) //detach the head of ppool
 {
 	struct snull_priv *priv = netdev_priv(dev);
-	unsigned long flags;
+	//unsigned long flags;
 	struct snull_packet *pkt;
     
 	//spin_lock_irqsave(&priv->lock, flags);
@@ -104,7 +109,7 @@ snull_get_tx_buffer(struct net_device *dev) //detach the head of ppool
 void 
 snull_release_buffer(struct snull_packet *pkt)
 {
-	unsigned long flags;
+	//unsigned long flags;
 	struct snull_priv *priv = netdev_priv(pkt->dev);
 	
 	//spin_lock_irqsave(&priv->lock, flags);
@@ -118,7 +123,7 @@ snull_release_buffer(struct snull_packet *pkt)
 void 
 snull_enqueue_buf(struct net_device *dev, struct snull_packet *pkt) // Put the specified pkt in rx_queue.
 {
-	unsigned long flags;
+	//unsigned long flags;
 	struct snull_priv *priv = netdev_priv(dev);
 
 	//spin_lock_irqsave(&priv->lock, flags);
@@ -132,7 +137,7 @@ snull_packet *snull_dequeue_buf(struct net_device *dev)
 {
 	struct snull_priv *priv = netdev_priv(dev);
 	struct snull_packet *pkt;
-	unsigned long flags;
+	//unsigned long flags;
 
 	//spin_lock_irqsave(&priv->lock, flags);
 	pkt = priv->rx_queue;
@@ -164,29 +169,6 @@ snull_open(struct net_device *dev) {
 static int 
 snull_release(struct net_device *dev) {
 	netif_stop_queue(dev);
-	return 0;
-}
-
-static int 
-snull_tx(struct sk_buff *skb, struct net_device *dev) {
-	int len;
-	char *data, shortpkt[ETH_ZLEN]; // ETH_ZLEN defined at if_ether meaning minumum packet
-	struct snull_priv *priv = netdev_priv(dev);
-
-	data = skb->data;
-	len = skb->len;
-	if (len < ETH_ZLEN) {
-		memset(shortpkt, 0, ETH_ZLEN);
-		memset(shortpkt, skb->data, skb->len);
-		len = ETH_ZLEN;
-		data = shortpkt;
-	}
-	dev->trans_start = jiffies;
-
-	priv->skb = skb;
-
-	snull_hw_tx(data, len, dev);
-
 	return 0;
 }
 
@@ -292,7 +274,7 @@ snull_hw_tx(char *buf, int len, struct net_device *dev)
 
 	if (0) { /* enable this conditional to look at the data */
 		int i;
-		PDEBUG("len is %i\n" KERN_DEBUG "data:",len);
+		//PDEBUG("len is %i\n" KERN_DEBUG "data:",len);
 		for (i=14 ; i<len; i++)
 			printk(" %02x",buf[i]&0xff);
 		printk("\n");
@@ -311,14 +293,14 @@ snull_hw_tx(char *buf, int len, struct net_device *dev)
 	ih->check = 0;         /* and rebuild the checksum (ip needs it) */
 	ih->check = ip_fast_csum((unsigned char *)ih,ih->ihl);
 
-	if (dev == snull_devs[0])
-		PDEBUGG("%08x:%05i --> %08x:%05i\n",
-				ntohl(ih->saddr),ntohs(((struct tcphdr *)(ih+1))->source),
-				ntohl(ih->daddr),ntohs(((struct tcphdr *)(ih+1))->dest));
-	else
-		PDEBUGG("%08x:%05i <-- %08x:%05i\n",
-				ntohl(ih->daddr),ntohs(((struct tcphdr *)(ih+1))->dest),
-				ntohl(ih->saddr),ntohs(((struct tcphdr *)(ih+1))->source));
+//	if (dev == snull_devs[0])
+//		PDEBUGG("%08x:%05i --> %08x:%05i\n",
+//				ntohl(ih->saddr),ntohs(((struct tcphdr *)(ih+1))->source),
+//				ntohl(ih->daddr),ntohs(((struct tcphdr *)(ih+1))->dest));
+//	else
+//		PDEBUGG("%08x:%05i <-- %08x:%05i\n",
+//				ntohl(ih->daddr),ntohs(((struct tcphdr *)(ih+1))->dest),
+//				ntohl(ih->saddr),ntohs(((struct tcphdr *)(ih+1))->source));
 
 	/*
 	 * Ok, now the packet is ready for transmission: first simulate a
@@ -333,7 +315,7 @@ snull_hw_tx(char *buf, int len, struct net_device *dev)
 	snull_enqueue_buf(dest, tx_buffer);
 	if (priv->rx_int_enabled) {
 		priv->status |= SNULL_RX_INTR;
-		snull_interrupt(0, dest, NULL);
+		snull_regular_interrupt(0, dest, NULL);
 	}
 
 	priv = netdev_priv(dev);
@@ -343,11 +325,11 @@ snull_hw_tx(char *buf, int len, struct net_device *dev)
 	if (lockup && ((priv->stats.tx_packets + 1) % lockup) == 0) {
         	/* Simulate a dropped transmit interrupt */
 		netif_stop_queue(dev);
-		PDEBUG("Simulate lockup at %ld, txp %ld\n", jiffies,
-				(unsigned long) priv->stats.tx_packets);
+		//PDEBUG("Simulate lockup at %ld, txp %ld\n", jiffies,
+		//		(unsigned long) priv->stats.tx_packets);
 	}
 	else
-		snull_interrupt(0, dev, NULL);
+		snull_regular_interrupt(0, dev, NULL);
 }
 
 /*
@@ -368,7 +350,7 @@ snull_tx(struct sk_buff *skb, struct net_device *dev)
 		len = ETH_ZLEN;
 		data = shortpkt;
 	}
-	dev->trans_start = jiffies; /* save the timestamp */
+	//dev->trans_start = jiffies; /* save the timestamp */
 
 	/* Remember the skb, so we can free it at interrupt time */
 	priv->skb = skb;
@@ -379,10 +361,9 @@ snull_tx(struct sk_buff *skb, struct net_device *dev)
 	return 0; /* Our simple device can not fail */
 }
 
-struct 
-net_device_stats*
+struct net_device_stats*
 snull_stats(struct net_device *dev) {
-	struct snull_priv = netdev_priv(dev);
+	struct snull_priv *priv = netdev_priv(dev);
 	return &priv->stats;	
 }
 
@@ -398,29 +379,35 @@ snull_header(struct sk_buff *skb, struct net_device *dev, unsigned short type, v
 	return (dev->hard_header_len);
 }
 
+static const struct net_device_ops snull_ops = {
+	.ndo_open = snull_open,
+	.ndo_stop = snull_release,
+	.ndo_start_xmit = snull_tx,
+	.ndo_get_stats = snull_stats,
+};
 
 static void 
 snull_setup(struct net_device *dev) {
 	struct snull_priv *priv;
 	ether_setup(dev);
 
-	//! maybe equal net_device_ops
-	dev->open = snull_open;
-	dev->stop = snull_release;
-	//dev->set_config = snull_config;
-	dev->hard_start_xmit = snull_tx;
-	//dev->do_ioctl = snull_ioctl;
-	dev->get_stats = snull_stats;
-	//dev->change_mtu = snull_change_mtu;  
-	//dev->rebuild_header  = snull_rebuild_header;
-	dev->hard_header = snull_header;
-	//dev->tx_timeout = snull_tx_timeout;
-	//dev->watchdog_timeo = timeout;
+//	//! maybe equal net_device_ops
+//	dev->open = snull_open;
+//	dev->stop = snull_release;
+//	//dev->set_config = snull_config;
+//	dev->hard_start_xmit = snull_tx;
+//	//dev->do_ioctl = snull_ioctl;
+//	dev->get_stats = snull_stats;
+//	//dev->change_mtu = snull_change_mtu;  
+//	//dev->rebuild_header  = snull_rebuild_header;
+//	dev->hard_header = snull_header;
+//	//dev->tx_timeout = snull_tx_timeout;
+//	//dev->watchdog_timeo = timeout;
 
 	// flags, features, hard_header_cache ???
 	dev->flags |= IFF_NOARP;
-	dev->features |= NETIF_F_NOCSUM; // no checksum in tx.
-	dev->hard_header_cache = NULL; // disable caching.
+	//dev->features |= NETIF_F_NO_CSUM; // no checksum in tx.
+	//dev->hard_header_cache = NULL; // disable caching.
 
 	priv = netdev_priv(dev);
 	memset(priv, 0, sizeof(struct snull_priv));
@@ -445,17 +432,17 @@ snull_exit(void) {
 static int 
 snull_init(void) {
 	int ret = -ENOMEM;
+	int result, i;
 	printk(KERN_INFO "snull_init\n");
 
-	snull_devs[0] = alloc_netdev(sizeof(struct snull_priv), sn%d, snull_setup);
-	snull_devs[1] = alloc_netdev(sizeof(struct snull_priv), sn%d, snull_setup);
-	if (snull_dev[0] == NULL || snull_dev[1] == NULL)
+	snull_devs[0] = alloc_netdev(sizeof(struct snull_priv), "sn%d", NET_NAME_UNKNOWN, snull_setup);
+	snull_devs[1] = alloc_netdev(sizeof(struct snull_priv), "sn%d", NET_NAME_UNKNOWN, snull_setup);
+	if (snull_devs[0] == NULL || snull_devs[1] == NULL)
 		goto out;
 
 	ret = -ENODEV;
-	int result;
 
-	for (int i = 0; i < 2; i++) {
+	for (i = 0; i < 2; i++) {
 		if ((result = register_netdev(snull_devs[i]))) {
 			printk(KERN_INFO MODULE_NAME ": error %i registering device \"%s\"\n", result, snull_devs[i]->name);
 		}
