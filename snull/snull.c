@@ -52,7 +52,8 @@ int pool_size = 8;
 module_param(pool_size, int, 0);
 
 //!! Set up a device's packet pool.
-void snull_setup_pool(struct net_device *dev)
+void 
+snull_setup_pool(struct net_device *dev)
 {
 	struct snull_priv *priv = netdev_priv(dev);
 	struct snull_packet *pkt;
@@ -71,7 +72,8 @@ void snull_setup_pool(struct net_device *dev)
 	}
 }
 
-static void snull_teardown_pool(struct net_device *dev) {
+static void 
+snull_teardown_pool(struct net_device *dev) {
 	struct snull_priv *priv = netdev_priv(dev);
 	struct snull_packet *pkt;
 	while ((pkt = priv->ppool)) {
@@ -81,7 +83,8 @@ static void snull_teardown_pool(struct net_device *dev) {
 	}	
 }
 
-struct snull_packet *snull_get_tx_buffer(struct net_device *dev) //detach the head of ppool
+struct snull_packet* 
+snull_get_tx_buffer(struct net_device *dev) //detach the head of ppool
 {
 	struct snull_priv *priv = netdev_priv(dev);
 	unsigned long flags;
@@ -98,7 +101,8 @@ struct snull_packet *snull_get_tx_buffer(struct net_device *dev) //detach the he
 	return pkt;
 }
 
-void snull_release_buffer(struct snull_packet *pkt)
+void 
+snull_release_buffer(struct snull_packet *pkt)
 {
 	unsigned long flags;
 	struct snull_priv *priv = netdev_priv(pkt->dev);
@@ -111,7 +115,8 @@ void snull_release_buffer(struct snull_packet *pkt)
 		netif_wake_queue(pkt->dev);
 }
 
-void snull_enqueue_buf(struct net_device *dev, struct snull_packet *pkt) // Put the specified pkt in rx_queue.
+void 
+snull_enqueue_buf(struct net_device *dev, struct snull_packet *pkt) // Put the specified pkt in rx_queue.
 {
 	unsigned long flags;
 	struct snull_priv *priv = netdev_priv(dev);
@@ -122,7 +127,8 @@ void snull_enqueue_buf(struct net_device *dev, struct snull_packet *pkt) // Put 
 	//spin_unlock_irqrestore(&priv->lock, flags);
 }
 
-struct snull_packet *snull_dequeue_buf(struct net_device *dev)
+struct 
+snull_packet *snull_dequeue_buf(struct net_device *dev)
 {
 	struct snull_priv *priv = netdev_priv(dev);
 	struct snull_packet *pkt;
@@ -137,7 +143,8 @@ struct snull_packet *snull_dequeue_buf(struct net_device *dev)
 }
 
 // Enable and disable receive interrupts.
-static void snull_rx_ints(struct net_device *dev, int enable)
+static void 
+snull_rx_ints(struct net_device *dev, int enable)
 {
 	struct snull_priv *priv = netdev_priv(dev);
 	priv->rx_int_enabled = enable;
@@ -146,19 +153,22 @@ static void snull_rx_ints(struct net_device *dev, int enable)
 
 
 // open/close
-static int snull_open(struct net_device *dev) {
+static int 
+snull_open(struct net_device *dev) {
 	memcpy(dev->dev_addr, "\0SNUL0", ETH_ALEN);
 	if (dev == snull_devs[1])
 		dev->dev_addr[ETH_ALEN - 1]++; /* \0SNUL1 */
 	netif_start_queue(dev);
 	return 0;
 }
-static int snull_release(struct net_device *dev) {
+static int 
+snull_release(struct net_device *dev) {
 	netif_stop_queue(dev);
 	return 0;
 }
 
-static int snull_tx(struct sk_buff *skb, struct net_device *dev) {
+static int 
+snull_tx(struct sk_buff *skb, struct net_device *dev) {
 	int len;
 	char *data, shortpkt[ETH_ZLEN]; // ETH_ZLEN defined at if_ether meaning minumum packet
 	struct snull_priv *priv = netdev_priv(dev);
@@ -180,7 +190,8 @@ static int snull_tx(struct sk_buff *skb, struct net_device *dev) {
 	return 0;
 }
 
-void snull_rx(struct net_device *dev, struct snull_packet *pkt)
+void 
+snull_rx(struct net_device *dev, struct snull_packet *pkt)
 {
 	struct sk_buff *skb;
 	struct snull_priv *priv = netdev_priv(dev);
@@ -210,7 +221,8 @@ void snull_rx(struct net_device *dev, struct snull_packet *pkt)
 	return;
 }
 
-static void snull_regular_interrupt(int irq, void *dev_id, struct pt_regs *regs)
+static void 
+snull_regular_interrupt(int irq, void *dev_id, struct pt_regs *regs)
 {
 	int statusword;
 	struct snull_priv *priv;
@@ -256,7 +268,8 @@ static void snull_regular_interrupt(int irq, void *dev_id, struct pt_regs *regs)
 /*
  * Transmit a packet (low level interface)
  */
-static void snull_hw_tx(char *buf, int len, struct net_device *dev)
+static void 
+snull_hw_tx(char *buf, int len, struct net_device *dev)
 {
 	/*
 	 * This function deals with hw details. This interface loops
@@ -340,7 +353,8 @@ static void snull_hw_tx(char *buf, int len, struct net_device *dev)
 /*
  * Transmit a packet (called by the kernel)
  */
-int snull_tx(struct sk_buff *skb, struct net_device *dev)
+int 
+snull_tx(struct sk_buff *skb, struct net_device *dev)
 {
 	int len;
 	char *data, shortpkt[ETH_ZLEN];
@@ -365,13 +379,15 @@ int snull_tx(struct sk_buff *skb, struct net_device *dev)
 	return 0; /* Our simple device can not fail */
 }
 
-struct net_device_stats*
+struct 
+net_device_stats*
 snull_stats(struct net_device *dev) {
 	struct snull_priv = netdev_priv(dev);
 	return &priv->stats;	
 }
 
-int snull_header(struct sk_buff *skb, struct net_device *dev, unsigned short type, void *daddr, void *saddr, unsigned int len)
+int 
+snull_header(struct sk_buff *skb, struct net_device *dev, unsigned short type, void *daddr, void *saddr, unsigned int len)
 {
 	struct ethhdr *eth = (struct ethhdr *)skb_push(skb,ETH_HLEN);
 
@@ -383,7 +399,8 @@ int snull_header(struct sk_buff *skb, struct net_device *dev, unsigned short typ
 }
 
 
-static void snull_setup(struct net_device *dev) {
+static void 
+snull_setup(struct net_device *dev) {
 	struct snull_priv *priv;
 	ether_setup(dev);
 
@@ -411,7 +428,8 @@ static void snull_setup(struct net_device *dev) {
 	snull_rx_ints(dev, 1);
 }
 
-static void snull_exit(void) {
+static void 
+snull_exit(void) {
 	int i;
 	printk(KERN_INFO "snull_exit\n");
 	for (i = 0; i < 2; i++) {
@@ -424,7 +442,8 @@ static void snull_exit(void) {
 	return;
 }
 
-static int snull_init(void) {
+static int 
+snull_init(void) {
 	int ret = -ENOMEM;
 	printk(KERN_INFO "snull_init\n");
 
