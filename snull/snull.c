@@ -181,7 +181,6 @@ snull_rx(struct net_device *dev, struct snull_packet *pkt)
 	struct sk_buff *skb;
 	struct snull_priv *priv = netdev_priv(dev);
 	
-	printk(KERN_INFO MODULE_NAME "snull_rx\n");
 	/*
 	 * The packet has been retrieved from the transmission
 	 * medium. Build an skb around it, so upper layers can handle it
@@ -196,7 +195,6 @@ snull_rx(struct net_device *dev, struct snull_packet *pkt)
 	skb_reserve(skb, 2); /* align IP on 16B boundary */  
 	memcpy(skb_put(skb, pkt->datalen), pkt->data, pkt->datalen);
 
-	printk(KERN_INFO MODULE_NAME " : %08x \n", ntohl(ih->saddr),ntohs(((struct tcphdr *)(ih+1))->source),);
 
 	/* Write metadata, and then pass to the receive level */
 	skb->dev = dev;
@@ -223,12 +221,6 @@ snull_regular_interrupt(int irq, void *dev_id, struct pt_regs *regs)
 	struct net_device *dev = (struct net_device *)dev_id;
 	/* ... and check with hw if it's really ours */
 
-	if (dev == snull_devs[0])
-		printk(KERN_INFO MODULE_NAME "snull_regular_interrupt dev0 ");
-	else
-		printk(KERN_INFO MODULE_NAME "snull_regular_interrupt dev1 ");
-
-
 	if (!dev)
 		return;
 
@@ -240,7 +232,6 @@ snull_regular_interrupt(int irq, void *dev_id, struct pt_regs *regs)
 	priv->status = 0;
 	if (statusword & SNULL_RX_INTR) { //RX operation
 		/* send it to snull_rx for handling */
-		printk(KERN_INFO MODULE_NAME "rx\n");
 		pkt = priv->rx_queue;
 		if (pkt) {
 			priv->rx_queue = pkt->next;
@@ -249,7 +240,6 @@ snull_regular_interrupt(int irq, void *dev_id, struct pt_regs *regs)
 	}
 	if (statusword & SNULL_TX_INTR) { //TX operation
 		/* a transmission is over: free the skb */
-		printk(KERN_INFO MODULE_NAME "tx\n");
 		priv->stats.tx_packets++;
 		priv->stats.tx_bytes += priv->tx_packetlen;
 		dev_kfree_skb(priv->skb);
@@ -279,8 +269,6 @@ snull_hw_tx(char *buf, int len, struct net_device *dev)
 	u32 *saddr, *daddr;
 	struct snull_packet *tx_buffer;
 
-	printk(KERN_INFO MODULE_NAME "snull_hw_tx\n");
-    
 	/* I am paranoid. Ain't I? */
 	if (len < sizeof(struct ethhdr) + sizeof(struct iphdr)) {
 		printk("snull: packet too short (%i octets)\n", len);
@@ -357,8 +345,6 @@ snull_tx(struct sk_buff *skb, struct net_device *dev)
 	char *data, shortpkt[ETH_ZLEN];
 	struct snull_priv *priv = netdev_priv(dev);
 
-	printk(KERN_INFO MODULE_NAME "snull_tx\n");
-	
 	data = skb->data;
 	len = skb->len;
 	if (len < ETH_ZLEN) {
