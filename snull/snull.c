@@ -1,22 +1,25 @@
-#include <linux/module.h>
-#include <linux/init.h>
-#include <linux/netdevice.h>
-#include <linux/kernel.h>
-#include <linux/sched.h>
-#include <linux/slab.h>
-#include <linux/errno.h>
-#include <linux/types.h>
-#include <linux/etherdevice.h>
-#include <linux/ethtool.h>
-#include <linux/skbuff.h>
-#include <linux/in.h>
-#include <linux/ip.h>
-#include <linux/tcp.h>
-#include <net/arp.h>
-#include <linux/interrupt.h>
-#include <linux/skbuff.h>
+#include<linux/module.h>
+#include<linux/init.h>
+#include<linux/netdevice.h>
+#include<linux/kernel.h>
+#include<linux/sched.h>
+#include<linux/slab.h>
+#include<linux/errno.h>
+#include<linux/types.h>
+#include<linux/etherdevice.h>
+#include<linux/ethtool.h>
+#include<linux/skbuff.h>
+#include<linux/in.h>
+#include<linux/ip.h>
+#include<linux/tcp.h>
+#include<net/arp.h>
+#include<linux/interrupt.h>
+#include<linux/skbuff.h>
 
-#include<uapi/linux/netdevice.h>
+//#include<uapi/linux/netdevice.h>
+//#include<linux/netdevice.h>
+
+//#include<linux/config.h>
 
 #define MODULE_NAME "SNULL"
 
@@ -28,7 +31,7 @@ MODULE_DESCRIPTION("snull network device.");
 #define SNULL_RX_INTR 0x0001
 #define SNULL_TX_INTR 0x0002
 
-struct net_device *snull_devs[2];
+struct net_device* snull_devs[2];
 
 struct snull_packet {
 	struct snull_packet *next;
@@ -389,6 +392,8 @@ static const struct net_device_ops snull_ops = {
 static void 
 snull_setup(struct net_device *dev) {
 	struct snull_priv *priv;
+
+	eth_hw_addr_random(dev);
 	ether_setup(dev);
 
 //	//! maybe equal net_device_ops
@@ -403,6 +408,7 @@ snull_setup(struct net_device *dev) {
 //	dev->hard_header = snull_header;
 //	//dev->tx_timeout = snull_tx_timeout;
 //	//dev->watchdog_timeo = timeout;
+	dev->netdev_ops = &snull_ops;
 
 	// flags, features, hard_header_cache ???
 	dev->flags |= IFF_NOARP;
@@ -413,6 +419,7 @@ snull_setup(struct net_device *dev) {
 	memset(priv, 0, sizeof(struct snull_priv));
 	spin_lock_init(&priv->lock);
 	snull_rx_ints(dev, 1);
+	snull_setup_pool(dev);
 }
 
 static void 
@@ -440,6 +447,8 @@ snull_init(void) {
 	if (snull_devs[0] == NULL || snull_devs[1] == NULL)
 		goto out;
 
+	printk(KERN_INFO "snull_devs[0]:%p\n", snull_devs[0]);
+	printk(KERN_INFO "after alloc_netdev\n");
 	ret = -ENODEV;
 
 	for (i = 0; i < 2; i++) {
@@ -450,6 +459,13 @@ snull_init(void) {
 			ret = 0;
 		}
 	}
+//		if ((result = register_netdev(snull_devs[0]))) {
+//			printk(KERN_INFO MODULE_NAME ": error %i registering device \"%s\"\n", result, snull_devs[i]->name);
+//		}
+//		else {
+//			ret = 0;
+//		}
+	printk(KERN_INFO "after register_netdev\n");
 
 out:	
 	if (ret)
